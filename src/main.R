@@ -103,8 +103,12 @@ rm(cases, cases_filtered)
 
 ## Step I-03: visualization nd class identification ---------------------------------
 # define breaks and labels for the color scale
+
+# confirmed cases removed outliers
 cc_rm_outlier <- cases_cleaned %>% filter(confirmed_cases_P1000 <= 600)
+# deaths removed outliers
 d_rm_outlier <- cases_cleaned %>% filter(deaths_P1000 <= 10)
+
 ggplot(cc_rm_outlier, mapping = aes(confirmed_cases_P1000)) + geom_histogram(bins = 1000)+labs(x= "Confirmed cases per 1000")
 ggplot(d_rm_outlier, mapping = aes(deaths_P1000)) + geom_histogram(bins = 100)+labs(x= "Deaths per 1000")
 summary(cases_cleaned)
@@ -120,14 +124,15 @@ summary(cases_cleaned)
 #Middle 50% - Medium 2.8 < x < 5
 #Upper 25% - High x > 5
 
-cases_classified <- cases_cleaned
-
-cases_classified$confirmed_risk <- cut(cases_classified$confirmed_cases_P1000,
+cc_rm_classified <- cc_rm_outlier
+cc_rm_classified$confirmed_risk <- cut(cc_rm_outlier$confirmed_cases_P1000,
                                        breaks=c(-1,245,330,4000),
                                        labels=c('Low', 'Medium', 'High'))
-
-cases_classified$death_risk <- cut(cases_classified$deaths_P1000,
+cc_d_classified <- d_rm_outlier
+cc_d_classified$death_risk <- cut(d_rm_outlier$deaths_P1000,
                                        breaks=c(-1,2.8,5,10000),
                                        labels=c('Low', 'Medium', 'High'))
-summary(cases_classified)
+
+summary(cc_rm_classified)
+summary(cc_d_classified)
 
