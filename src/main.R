@@ -3,6 +3,7 @@
 ## Step I-01: Loading the Dataset ----------------------------------------------------
 #load the csv file/ check how many missing values do we have
 library("tidyverse")
+library(FSelector)
 
 cases <- read_csv("../data/Covid 04-02 + Census 2020-5yrs + Geo Boundaries.csv")
 cases <- cases %>% mutate_if(is.character, factor)
@@ -43,6 +44,7 @@ cases_filtered <- cases %>% mutate(
   asian_pop_P1000=asian_pop/total_pop*1000,
   black_pop_P1000=black_pop/total_pop*1000,
   hispanic_pop_P1000=hispanic_pop/total_pop*1000,
+  amerindian_pop_P1000 = amerindian_pop / total_pop*1000,
   
   deaths_P1000 = deaths/total_pop*1000,
   confirmed_cases_P1000= confirmed_cases/total_pop*1000,
@@ -52,39 +54,45 @@ cases_filtered <- cases %>% mutate(
   commuters_by_carpool_P1000 = commuters_by_carpool/total_pop*1000,
   commuters_drove_alone_P1000 = commuters_drove_alone/total_pop*1000,
   
-  pop_density_Pkm= total_pop * 10^6 /area_land_meters
+  pop_density_Pkm= total_pop * 10^6 /area_land_meters,
+  
+  # Added:
+  nonfamily_households_P1000= nonfamily_households/total_pop*1000,
+  housing_units_P1000 = housing_units/total_pop*1000,
+  employed_pop_P1000 = employed_pop /total_pop*1000, 
+  unemployed_pop_P1000 = unemployed_pop /total_pop*1000
+  #percent_income_spent_on_rent: this one is already normalized 
   
 )
 
-cases_cleaned <- cases_filtered %>% select(county_name,
-                                           # Ground truth
+cases_cleaned <- cases_filtered %>% select(# identification variables [2]
+                                           county_name,
+                                           state,
+                                           # class continuous variables [2]
                                            confirmed_cases_P1000,
                                            deaths_P1000,
-                                           # first Subset
-                                           # gender/Ethnicity and age
+                                           # decision variables [21]
                                            female_pop_P100,
                                            male_pop_P100,
                                            female_under_40_ratio,
                                            male_under_40_ratio,
-                                           # habits and interactions
                                            walked_to_work_P1000,
                                            commuters_by_public_transportation_P1000,
                                            commuters_by_carpool_P1000,
                                            commuters_drove_alone_P1000,
-                                           # financial related
                                            income_per_capita,
-                                           
-                                           # Second Subset
-                                           # gender/Ethnicity and age
                                            asian_pop_P1000,
                                            black_pop_P1000,
                                            hispanic_pop_P1000,
+                                           amerindian_pop_P1000,
                                            median_age,
-                                           # habits and interactions
                                            pop_density_Pkm,
-                                           # financial related
                                            median_income,
-                                           
+                                           nonfamily_households_P1000,
+                                           housing_units_P1000,
+                                           employed_pop_P1000,
+                                           unemployed_pop_P1000,
+                                           percent_income_spent_on_rent
                                            
 ) 
 
@@ -92,3 +100,11 @@ cases_cleaned <- cases_filtered %>% select(county_name,
 is.na(cases_cleaned) %>% sum()
 cases_cleaned
 rm(cases, cases_filtered)
+
+## Step I-03: visualization nd class identification ---------------------------------
+# define breaks and labels for the color scale
+cc_rm_outlier <- cases_cleaned %>% filter(confirmed_cases_P1000 <= 600)
+d_rm_outlier <- cases_cleaned %>% filter(deaths_P1000 <= 10)
+ggplot(cc_rm_outlier, mapping = aes(confirmed_cases_P1000)) + geom_histogram(bins = 1000)+labs(x= "Confirmed cases per 1000")
+ggplot(d_rm_outlier, mapping = aes(deaths_P1000)) + geom_histogram(bins = 100)+labs(x= "Deaths per 1000")
+
