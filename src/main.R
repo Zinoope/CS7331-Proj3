@@ -107,4 +107,27 @@ cc_rm_outlier <- cases_cleaned %>% filter(confirmed_cases_P1000 <= 600)
 d_rm_outlier <- cases_cleaned %>% filter(deaths_P1000 <= 10)
 ggplot(cc_rm_outlier, mapping = aes(confirmed_cases_P1000)) + geom_histogram(bins = 1000)+labs(x= "Confirmed cases per 1000")
 ggplot(d_rm_outlier, mapping = aes(deaths_P1000)) + geom_histogram(bins = 100)+labs(x= "Deaths per 1000")
+summary(cases_cleaned)
+
+#Confirmed Cases:
+
+#Lower 25% - Low x < 245
+#Middle 50% - Medium 245 < x < 330
+#Upper 25% - High x > 330
+
+#Deaths:
+#Lower 25% - Low x < 2.8
+#Middle 50% - Medium 2.8 < x < 5
+#Upper 25% - High x > 5
+
+cases_classified <- cases_cleaned
+
+cases_classified$confirmed_risk <- cut(cases_classified$confirmed_cases_P1000,
+                                       breaks=c(-1,245,330,4000),
+                                       labels=c('Low', 'Medium', 'High'))
+
+cases_classified$death_risk <- cut(cases_classified$deaths_P1000,
+                                       breaks=c(-1,2.8,5,10000),
+                                       labels=c('Low', 'Medium', 'High'))
+summary(cases_classified)
 
