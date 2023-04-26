@@ -4,6 +4,8 @@
 #load the csv file/ check how many missing values do we have
 library("tidyverse")
 library(FSelector)
+library(seriation)
+library(caret)
 
 cases <- read_csv("../data/Covid 04-02 + Census 2020-5yrs + Geo Boundaries.csv")
 cases <- cases %>% mutate_if(is.character, factor)
@@ -111,7 +113,6 @@ d_rm_outlier <- cases_cleaned %>% filter(deaths_P1000 <= 10)
 
 ggplot(cc_rm_outlier, mapping = aes(confirmed_cases_P1000)) + geom_histogram(bins = 1000)+labs(x= "Confirmed cases per 1000")
 ggplot(d_rm_outlier, mapping = aes(deaths_P1000)) + geom_histogram(bins = 100)+labs(x= "Deaths per 1000")
-summary(cases_cleaned)
 
 #Confirmed Cases:
 
@@ -124,15 +125,57 @@ summary(cases_cleaned)
 #Middle 50% - Medium 2.8 < x < 5
 #Upper 25% - High x > 5
 
-cc_rm_classified <- cc_rm_outlier
-cc_rm_classified$confirmed_risk <- cut(cc_rm_outlier$confirmed_cases_P1000,
+cc_classed <- cc_rm_outlier
+cc_classed$confirmed_risk <- cut(cc_rm_outlier$confirmed_cases_P1000,
                                        breaks=c(-1,245,330,4000),
                                        labels=c('Low', 'Medium', 'High'))
-cc_d_classified <- d_rm_outlier
-cc_d_classified$death_risk <- cut(d_rm_outlier$deaths_P1000,
+
+d_classed <- d_rm_outlier
+d_classed$death_risk <- cut(d_rm_outlier$deaths_P1000,
                                        breaks=c(-1,2.8,5,10000),
                                        labels=c('Low', 'Medium', 'High'))
 
-summary(cc_rm_classified)
-summary(cc_d_classified)
+summary(cc_classed)
+summary(d_classed)
+rm(cc_rm_outlier, d_rm_outlier, breaks, labels)
+
+## Step I-04: choosing classification variables ------------------------------------
+# Heat map for possible correlations between the data
+cm <- cor(cc_classed %>% select_if(is.numeric) %>% na.omit)
+hmap(cm, margins = c(14,14))
+
+# remove the classes building variables
+cc_classed <- cc_classed %>% select(-c(confirmed_cases_P1000, deaths_P1000))
+d_classed <- d_classed %>% select(-c(confirmed_cases_P1000, deaths_P1000))
+
+# split the set into train and test
+cases_train <- cc_classed %>% filter(state %in% c("TX", "CA", "FL", "NY"))
+cases_train %>% pull(confirmed_risk) %>% table()
+cases_test <-  cases_sel %>% filter(!(state %in% c("TX", "CA", "FL", "NY")))
+cases_test %>% pull(bad) %>% table()
+
+# see attribute importance
+cases_train %>%  chi.squared(confirmed_risk ~ ., data = .) %>% 
+  arrange(desc(attr_importance)) %>% head(n=10)
+
+# make a tree based classification
+fit <- cases_train %>%
+  train(confirmed_risk ~ . - county_name - state,
+        data = . ,
+        #method = "rpart",
+        method = "rf",
+        #method = "nb",
+        trControl = trainControl(method = "cv", number = 10)
+  )
+fit
+varImp(fit)
+
+
+
+
+
+
+
+
+
 
