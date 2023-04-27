@@ -68,34 +68,34 @@ cases_filtered <- cases %>% mutate(
 )
 
 cases_cleaned <- cases_filtered %>% select(# identification variables [2]
-                                           county_name,
-                                           state,
-                                           # class continuous variables [2]
-                                           confirmed_cases_P1000,
-                                           deaths_P1000,
-                                           # decision variables [21]
-                                           female_pop_P100,
-                                           male_pop_P100,
-                                           female_under_40_ratio,
-                                           male_under_40_ratio,
-                                           walked_to_work_P1000,
-                                           commuters_by_public_transportation_P1000,
-                                           commuters_by_carpool_P1000,
-                                           commuters_drove_alone_P1000,
-                                           income_per_capita,
-                                           asian_pop_P1000,
-                                           black_pop_P1000,
-                                           hispanic_pop_P1000,
-                                           amerindian_pop_P1000,
-                                           median_age,
-                                           pop_density_Pkm,
-                                           median_income,
-                                           nonfamily_households_P1000,
-                                           housing_units_P1000,
-                                           employed_pop_P1000,
-                                           unemployed_pop_P1000,
-                                           percent_income_spent_on_rent
-                                           
+  county_name,
+  state,
+  # class continuous variables [2]
+  confirmed_cases_P1000,
+  deaths_P1000,
+  # decision variables [21]
+  female_pop_P100,
+  male_pop_P100,
+  female_under_40_ratio,
+  male_under_40_ratio,
+  walked_to_work_P1000,
+  commuters_by_public_transportation_P1000,
+  commuters_by_carpool_P1000,
+  commuters_drove_alone_P1000,
+  income_per_capita,
+  asian_pop_P1000,
+  black_pop_P1000,
+  hispanic_pop_P1000,
+  amerindian_pop_P1000,
+  median_age,
+  pop_density_Pkm,
+  median_income,
+  nonfamily_households_P1000,
+  housing_units_P1000,
+  employed_pop_P1000,
+  unemployed_pop_P1000,
+  percent_income_spent_on_rent
+  
 ) 
 
 # check for NA values
@@ -114,26 +114,33 @@ d_rm_outlier <- cases_cleaned %>% filter(deaths_P1000 <= 10)
 ggplot(cc_rm_outlier, mapping = aes(confirmed_cases_P1000)) + geom_histogram(bins = 1000)+labs(x= "Confirmed cases per 1000")
 ggplot(d_rm_outlier, mapping = aes(deaths_P1000)) + geom_histogram(bins = 100)+labs(x= "Deaths per 1000")
 
+summary(cc_rm_outlier)
+summary(d_rm_outlier)
+
 #Confirmed Cases:
 
 #Lower 25% - Low x < 245
-#Middle 50% - Medium 245 < x < 330
+#Middle 25-50% - Medium Low 245 < x < 286
+#Middle 50-75% - Medium High 286 < x < 330
 #Upper 25% - High x > 330
 
 #Deaths:
 #Lower 25% - Low x < 2.8
-#Middle 50% - Medium 2.8 < x < 5
-#Upper 25% - High x > 5
+#Middle 25-50% - Medium Low 2.8 < x < 4.0
+#Middle 50-75% - Medium High 4.0 < x < 5.0
+#Upper 25% - High x > 5.0
 
+#Classify Risk based on confirmed cases
 cc_classed <- cc_rm_outlier
 cc_classed$confirmed_risk <- cut(cc_rm_outlier$confirmed_cases_P1000,
-                                       breaks=c(-1,245,330,4000),
-                                       labels=c('Low', 'Medium', 'High'))
+                                 breaks=c(-1,245.7,290.1,330.4,4000),
+                                 labels=c('Low', 'Medium Low', 'Medium High', 'High'))
 
+#Classify Risk based on deaths
 d_classed <- d_rm_outlier
 d_classed$death_risk <- cut(d_rm_outlier$deaths_P1000,
-                                       breaks=c(-1,2.8,5,10000),
-                                       labels=c('Low', 'Medium', 'High'))
+                            breaks=c(-1,2.8,3.974,5.048,10000),
+                            labels=c('Low', 'Medium Low', 'Medium High', 'High'))
 
 summary(cc_classed)
 summary(d_classed)
