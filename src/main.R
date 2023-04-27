@@ -158,7 +158,7 @@ d_classed <- d_classed %>% select(-c(confirmed_cases_P1000, deaths_P1000))
 # split the set into train and test
 cases_train <- cc_classed %>% filter(state %in% c("TX", "CA", "FL", "NY"))
 cases_train %>% pull(confirmed_risk) %>% table()
-cases_test <-  cases_sel %>% filter(!(state %in% c("TX", "CA", "FL", "NY")))
+cases_test <-  cc_classed %>% filter(!(state %in% c("TX", "CA", "FL", "NY")))
 cases_test %>% pull(bad) %>% table()
 
 # see attribute importance
