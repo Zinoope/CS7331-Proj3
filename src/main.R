@@ -103,6 +103,9 @@ is.na(cases_cleaned) %>% sum()
 cases_cleaned
 rm(cases, cases_filtered)
 
+#Deaths per confirmed case -----------------------------------------------------
+cases_cleaned$deaths_per_confirmed <- cases_cleaned$deaths_P1000/cases_cleaned$confirmed_cases_P1000
+
 ## Step I-03: visualization nd class identification ---------------------------------
 # define breaks and labels for the color scale
 
@@ -157,9 +160,12 @@ d_classed <- d_classed %>% select(-c(confirmed_cases_P1000, deaths_P1000))
 
 # split the set into train and test
 cases_train <- cc_classed %>% filter(state %in% c("TX", "CA", "FL", "NY"))
+#Unsure what you're trying to do here
 cases_train %>% pull(confirmed_risk) %>% table()
+#I think I corrected what you wanted to do?
 cases_test <-  cc_classed %>% filter(!(state %in% c("TX", "CA", "FL", "NY")))
-cases_test %>% pull(bad) %>% table()
+#
+cases_test %>% pull(confirmed_risk) %>% table()
 
 # see attribute importance
 cases_train %>%  chi.squared(confirmed_risk ~ ., data = .) %>% 
@@ -176,6 +182,29 @@ fit <- cases_train %>%
   )
 fit
 varImp(fit)
+
+# States that are similar in terms of population to Ohio (+- 2 million people):
+#Pennsylvania - PA
+#Illinois - IL
+#Georgia - GA
+#North Carolina - NC
+#Michigan - MI
+#New Jersey - NJ
+#Virginia - VA
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
