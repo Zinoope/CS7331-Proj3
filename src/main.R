@@ -253,6 +253,7 @@ ctreeFit <- cases_train %>% train(confirmed_risk ~ .- county_name - state,
                                 method = "ctree",
                                 data = .,
                                 tuneLength = 5,
+                                tuneGrid = cTree_tuneGrid,
                                 trControl = trainControl(method = "cv", indexOut = train_index))
 ctreeFit
 
@@ -265,6 +266,7 @@ svmFit <- cases_train %>% train(confirmed_risk ~.- county_name - state,
                               method = "svmLinear",
                               data = .,
                               tuneLength = 5,
+                              tuneGrid = svm_tuneGrid,
                               trControl = trainControl(method = "cv", indexOut = train_index))
 svmFit
 
@@ -277,6 +279,7 @@ randomForestFit <- cases_train %>% train(confirmed_risk ~ .- county_name - state
                                        method = "rf",
                                        data = .,
                                        tuneLength = 5,
+                                       tuneGrid = rf_tuneGrid,
                                        trControl = trainControl(method = "cv", indexOut = train_index))
 randomForestFit
 
