@@ -172,10 +172,12 @@ counties <- counties %>%
 
 counties_all <- counties %>% left_join(test_copy %>% 
                                          mutate(county = county_name %>% str_to_lower() %>% 
-                                                  str_replace('\\s+county\\s*$', '')))
+                                                  str_replace('\\s+county\\s*$', '') %>%
+                                                str_replace('\\s+parish\\s*$', '')))
 
 ggplot(counties_all, aes(long, lat)) + 
-  geom_polygon(aes(group = group, fill = confirmed_risk))
+  geom_polygon(aes(group = group, fill = confirmed_risk))+
+  scale_fill_manual(values = c("#4ceb34", "#e7ed26", "#ed8d26", "#ed3726"))
 
 rm(counties, counties_all, test_copy)
 
@@ -198,7 +200,7 @@ cases_train <- cc_classed %>% filter(state %in% c("PA", "IL", "GA", "NC", "MI", 
 cases_train %>% pull(confirmed_risk) %>% table()
 
 # extract the test set
-cases_test <-  cc_classed %>% filter(!(state %in% c("PA", "IL", "GA", "NC", "MI", "NJ", "VA")))
+cases_test <-  cc_classed %>% filter(!(state %in% c("OH")))
 # check for class balance for the filtered dataset
 cases_test %>% pull(confirmed_risk) %>% table()
 
@@ -220,12 +222,31 @@ varImp(fit)
 
 #rm(fit)
 
+X_train <-cases_train %>% select(c(deaths_per_confirmed,
+                                   black_pop_P1000,
+                                   employed_pop_P1000,
+                                   median_income,
+                                   income_per_capita,
+                                   commuters_drove_alone_P1000,
+                                   pop_density_Pkm,
+                                   walked_to_work_P1000,
+                                   amerindian_pop_P1000,
+                                   median_age,
+                                   nonfamily_households_P1000,
+                                   commuters_by_public_transportation_P1000,
+                                   housing_units_P1000,
+                                   male_under_40_ratio,
+                                   confirmed_risk))
+
 
 ## Step II-02: Selecting the Models to Train/ Confirmed Cases ------------------
 
 #K-Folds Validation: 
 train_index <- createFolds(cases_train$confirmed_risk, k = 10)
 
+#Hyperparameter tuning for cTree
+mincriterion <- seq(0.001, 0.01, by=0.0001)
+cTree_tuneGrid = as.data.frame(mincriterion)
 
 # Model 1: Decision Tree
 ctreeFit <- cases_train %>% train(confirmed_risk ~ .- county_name - state,
@@ -235,6 +256,10 @@ ctreeFit <- cases_train %>% train(confirmed_risk ~ .- county_name - state,
                                 trControl = trainControl(method = "cv", indexOut = train_index))
 ctreeFit
 
+#Hyperparameter tuning for SVM
+C <- seq(0.01, 0.1, by=0.01)
+svm_tuneGrid = as.data.frame(C)
+
 # Model 2: Support Vector Machine
 svmFit <- cases_train %>% train(confirmed_risk ~.- county_name - state,
                               method = "svmLinear",
@@ -242,6 +267,10 @@ svmFit <- cases_train %>% train(confirmed_risk ~.- county_name - state,
                               tuneLength = 5,
                               trControl = trainControl(method = "cv", indexOut = train_index))
 svmFit
+
+#Hyperparameter tuning for Random Forest
+mtry <- seq(0.01, 0.1, by=0.01)
+rf_tuneGrid = as.data.frame(mtry)
 
 # Model 3: Random Forest
 randomForestFit <- cases_train %>% train(confirmed_risk ~ .- county_name - state,
@@ -280,6 +309,8 @@ difs
 summary(difs)
 
 ## Step II-04: Testing each model to predict Ohio ------------------------------
+
+#We could just use cases_test here, just make sure you isolate "OH"
 
 OH_test <- cc_classed %>% filter((state %in% c("OH")))
 OH_predict <- subset(OH_test, select = -c(confirmed_risk) )
