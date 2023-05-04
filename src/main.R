@@ -1,12 +1,7 @@
-### PART I: cleaning and Visualization ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# PART I: cleaning and Visualization -------------------------------------------
 
-################################################################################
-################################################################################
-################################################################################
 ## Step I-01: Loading the Dataset ----------------------------------------------------
-################################################################################
-################################################################################
-################################################################################
+
 #load the csv file/ check how many missing values do we have
 library("tidyverse")
 library(FSelector)
@@ -19,13 +14,8 @@ dim(cases)
 # check for NA values
 is.na(cases) %>% sum()
 
-################################################################################
-################################################################################
-################################################################################
-## Step I-02: Aggregation, Normalization and Selection -----------------------------
-################################################################################
-################################################################################
-################################################################################
+## Step I-02: Aggregation, Normalization and Selection -------------------------
+
 cases_filtered <- cases %>% mutate(
   female_under_40_ratio= (female_under_5 +
                             female_5_to_9 +
@@ -74,8 +64,9 @@ cases_filtered <- cases %>% mutate(
   nonfamily_households_P1000= nonfamily_households/total_pop*1000,
   housing_units_P1000 = housing_units/total_pop*1000,
   employed_pop_P1000 = employed_pop /total_pop*1000, 
-  unemployed_pop_P1000 = unemployed_pop /total_pop*1000
+  unemployed_pop_P1000 = unemployed_pop /total_pop*1000,
   #percent_income_spent_on_rent: this one is already normalized 
+  deaths_per_confirmed = deaths/confirmed_cases
   
 )
 
@@ -106,7 +97,8 @@ cases_cleaned <- cases_filtered %>% select(# identification variables [2]
   housing_units_P1000,
   employed_pop_P1000,
   unemployed_pop_P1000,
-  percent_income_spent_on_rent
+  percent_income_spent_on_rent,
+  deaths_per_confirmed
   
 ) 
 
@@ -115,17 +107,8 @@ is.na(cases_cleaned) %>% sum()
 cases_cleaned
 rm(cases, cases_filtered)
 
-#Deaths per confirmed case -----------------------------------------------------
-cases_cleaned$deaths_per_confirmed <- cases_cleaned$deaths_P1000/cases_cleaned$confirmed_cases_P1000
 
-################################################################################
-################################################################################
-################################################################################
-## Step I-03: visualization nd class identification ---------------------------------
-################################################################################
-################################################################################
-################################################################################
-# define breaks and labels for the color scale
+## Step I-03: visualization and class identification ---------------------------
 
 # confirmed cases removed outliers
 cc_rm_outlier <- cases_cleaned %>% filter(confirmed_cases_P1000 <= 600)
@@ -165,7 +148,7 @@ d_classed$death_risk <- cut(d_rm_outlier$deaths_P1000,
 
 summary(cc_classed)
 summary(d_classed)
-rm(cc_rm_outlier, d_rm_outlier, breaks, labels)
+rm(cc_rm_outlier, d_rm_outlier)
 
 
 # States that are similar in terms of population to Ohio (+- 2 million people):
@@ -177,7 +160,7 @@ rm(cc_rm_outlier, d_rm_outlier, breaks, labels)
 #New Jersey - NJ
 #Virginia - VA
 
-#Visualize the map of states and their counties in terms of risk
+# Visualize the map of states and their counties in terms of risk
 test_copy <- cc_classed %>% filter((state %in% c("PA", "IL", "OH", "GA", "NC","MI","NJ","VA")))
 
 counties <- as_tibble(map_data("county"))
@@ -185,7 +168,7 @@ counties <- counties %>%
   rename(c(county = subregion, state = region)) %>%
   mutate(state = state.abb[match(state, tolower(state.name))]) %>%
   select(state, county, long, lat, group)
-counties 
+#counties 
 
 counties_all <- counties %>% left_join(test_copy %>% 
                                          mutate(county = county_name %>% str_to_lower() %>% 
@@ -193,28 +176,30 @@ counties_all <- counties %>% left_join(test_copy %>%
 
 ggplot(counties_all, aes(long, lat)) + 
   geom_polygon(aes(group = group, fill = confirmed_risk))
-################################################################################
-################################################################################
-################################################################################
-## Step I-04: choosing classification variables ------------------------------------
-################################################################################
-################################################################################
-################################################################################
+
+rm(counties, counties_all, test_copy)
+
+# Part II: classification ------------------------------------------------------
+
+## Step II-01: choosing classification variables -------------------------------
+
 # Heat map for possible correlations between the data
 cm <- cor(cc_classed %>% select_if(is.numeric) %>% na.omit)
 hmap(cm, margins = c(14,14))
+rm(cm)
 
 # remove the classes building variables
 cc_classed <- cc_classed %>% select(-c(confirmed_cases_P1000, deaths_P1000))
 d_classed <- d_classed %>% select(-c(confirmed_cases_P1000, deaths_P1000))
 
-# split the set into train and test
-cases_train <- cc_classed %>% filter(state %in% c("TX", "CA", "FL", "NY"))
-#Unsure what you're trying to do here
+# extract the train set
+cases_train <- cc_classed %>% filter(state %in% c("PA", "IL", "GA", "NC", "MI", "NJ", "VA"))
+# check for class balance for the filtered dataset
 cases_train %>% pull(confirmed_risk) %>% table()
-#I think I corrected what you wanted to do?
-cases_test <-  cc_classed %>% filter(!(state %in% c("TX", "CA", "FL", "NY")))
-#
+
+# extract the test set
+cases_test <-  cc_classed %>% filter(!(state %in% c("PA", "IL", "GA", "NC", "MI", "NJ", "VA")))
+# check for class balance for the filtered dataset
 cases_test %>% pull(confirmed_risk) %>% table()
 
 # see attribute importance
@@ -233,27 +218,17 @@ fit <- cases_train %>%
 fit
 varImp(fit)
 
-summary(test_copy)
+#rm(fit)
 
-################################################################################
-################################################################################
-################################################################################
-## Step I-05: Selecting the Models to Train/ Confirmed Cases--------------------
-################################################################################
-################################################################################
-################################################################################
-test_copy <- cc_classed %>% filter((state %in% c("PA", "IL", "GA", "NC","MI","NJ","VA")))
 
-# Split into Training and Testing Datasets
-inTrain <- createDataPartition(y = test_copy$confirmed_risk, p = .8)[[1]]
-X_train <- test_copy %>% slice(inTrain)
-X_test <- test_copy %>% slice(-inTrain)
+## Step II-02: Selecting the Models to Train/ Confirmed Cases ------------------
 
 #K-Folds Validation: 
-train_index <- createFolds(X_train$confirmed_risk, k = 10)
+train_index <- createFolds(cases_train$confirmed_risk, k = 10)
+
 
 # Model 1: Decision Tree
-ctreeFit <- X_train %>% train(confirmed_risk ~ .- county_name - state,
+ctreeFit <- cases_train %>% train(confirmed_risk ~ .- county_name - state,
                                 method = "ctree",
                                 data = .,
                                 tuneLength = 5,
@@ -261,7 +236,7 @@ ctreeFit <- X_train %>% train(confirmed_risk ~ .- county_name - state,
 ctreeFit
 
 # Model 2: Support Vector Machine
-svmFit <- X_train %>% train(confirmed_risk ~.- county_name - state,
+svmFit <- cases_train %>% train(confirmed_risk ~.- county_name - state,
                               method = "svmLinear",
                               data = .,
                               tuneLength = 5,
@@ -269,7 +244,7 @@ svmFit <- X_train %>% train(confirmed_risk ~.- county_name - state,
 svmFit
 
 # Model 3: Random Forest
-randomForestFit <- X_train %>% train(confirmed_risk ~ .- county_name - state,
+randomForestFit <- cases_train %>% train(confirmed_risk ~ .- county_name - state,
                                        method = "rf",
                                        data = .,
                                        tuneLength = 5,
@@ -277,7 +252,7 @@ randomForestFit <- X_train %>% train(confirmed_risk ~ .- county_name - state,
 randomForestFit
 
 # Model 4: Neural Network
-nnetFit <- X_train %>% train(confirmed_risk ~ .- county_name - state,
+nnetFit <- cases_train %>% train(confirmed_risk ~ .- county_name - state,
                                method = "nnet",
                                data = .,
                                tuneLength = 5,
@@ -285,13 +260,9 @@ nnetFit <- X_train %>% train(confirmed_risk ~ .- county_name - state,
                                trace = FALSE)
 nnetFit
 
-################################################################################
-################################################################################
-################################################################################
-## Step I-06: Compare the models------------------------------------------------
-################################################################################
-################################################################################
-################################################################################
+
+## Step II-03: Compare the models ----------------------------------------------
+
 resamps <- resamples(list(
   ctree = ctreeFit,
   SVM = svmFit,
@@ -307,13 +278,9 @@ bwplot(resamps, layout = c(3, 1))
 difs <- diff(resamps)
 difs
 summary(difs)
-################################################################################
-################################################################################
-################################################################################
-## Step I-07: Testing each model to predict Ohio--------------------------------
-################################################################################
-################################################################################
-################################################################################
+
+## Step II-04: Testing each model to predict Ohio ------------------------------
+
 OH_test <- cc_classed %>% filter((state %in% c("OH")))
 OH_predict <- subset(OH_test, select = -c(confirmed_risk) )
 # Decision Tree:
@@ -329,13 +296,9 @@ confusionMatrix(pr, reference = OH_test$confirmed_risk)
 pr <- predict(nnetFit, OH_predict)
 confusionMatrix(pr, reference = OH_test$confirmed_risk)
 
-################################################################################
-################################################################################
-################################################################################
-## Step I-08: Compare the decision boundaries-----------------------------------
-################################################################################
-################################################################################
-################################################################################
+
+## Step II-05: Compare the decision boundaries ---------------------------------
+
 library(scales)
 library(tidyverse)
 library(ggplot2)
