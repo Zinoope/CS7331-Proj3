@@ -161,7 +161,7 @@ rm(cc_rm_outlier, d_rm_outlier)
 #Virginia - VA
 
 # Visualize the map of states and their counties in terms of risk
-test_copy <- cc_classed %>% filter((state %in% c("PA", "IL", "OH", "GA", "NC","MI","NJ","VA")))
+test_copy <- cc_classed #%>% filter((state %in% c("PA", "IL", "OH", "GA", "NC","MI","NJ","VA")))
 
 counties <- as_tibble(map_data("county"))
 counties <- counties %>% 
@@ -206,7 +206,7 @@ cases_test %>% pull(confirmed_risk) %>% table()
 
 # see attribute importance
 cases_train %>%  chi.squared(confirmed_risk ~ ., data = .) %>% 
-  arrange(desc(attr_importance)) %>% head(n=10)
+  arrange(desc(attr_importance)) %>% head(n=15)
 
 # make a tree based classification
 fit <- cases_train %>%
@@ -318,12 +318,15 @@ OH_predict <- subset(OH_test, select = -c(confirmed_risk) )
 pr <- predict(ctreeFit, OH_predict)
 confusionMatrix(pr, reference = OH_test$confirmed_risk)
 
+# Support Vector Machine
 pr <- predict(svmFit, OH_predict)
 confusionMatrix(pr, reference = OH_test$confirmed_risk)
 
+# Random Forest
 pr <- predict(randomForestFit, OH_predict)
 confusionMatrix(pr, reference = OH_test$confirmed_risk)
 
+# Neural Network 
 pr <- predict(nnetFit, OH_predict)
 confusionMatrix(pr, reference = OH_test$confirmed_risk)
 
@@ -331,9 +334,7 @@ confusionMatrix(pr, reference = OH_test$confirmed_risk)
 ## Step II-05: Compare the decision boundaries ---------------------------------
 
 library(scales)
-library(tidyverse)
-library(ggplot2)
-library(caret)
+
 
 decisionplot <- function(model, data, class_var, 
                          predict_type = c("class", "prob"), resolution = 3 * 72) {
