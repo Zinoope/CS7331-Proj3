@@ -241,10 +241,10 @@ X_train <-cases_train %>% select(c(deaths_per_confirmed,
 
 ## Step II-02: Selecting the Models to Train/ Confirmed Cases ------------------
 
-#K-Folds Validation: 
+# K-Folds Validation: 
 train_index <- createFolds(cases_train$confirmed_risk, k = 10)
 
-#Hyperparameter tuning for cTree
+# Hyperparameter tuning for cTree
 mincriterion <- seq(0.001, 0.01, by=0.0001)
 cTree_tuneGrid = as.data.frame(mincriterion)
 
@@ -313,26 +313,90 @@ summary(difs)
 
 ## Step II-04: Testing each model to predict Ohio ------------------------------
 
-#We could just use cases_test here, just make sure you isolate "OH"
+### added visualization part ---------------------------------------------------
+counties <- as_tibble(map_data("county"))
+counties_OH <- counties %>% dplyr::filter(region == "ohio") %>% 
+  rename(c(county = subregion))
 
+
+rm(counties)
+
+### prediction part ------------------------------------------------------------
+
+#We could just use cases_test here, just make sure you isolate "OH"
+# get ohio counties aside
 OH_test <- cc_classed %>% filter((state %in% c("OH")))
+
+# before doing any prediction create the ground truth cluster visualization 
+truth_OH <- OH_test %>% mutate(county = county_name %>% 
+                                          str_to_lower() %>% str_replace('\\s+county\\s*$', ''))
+truth_clust <- counties_OH %>% left_join(truth_OH)
+truth_map <- ggplot(truth_clust, aes(long, lat)) + 
+  geom_polygon(aes(group = group, fill = confirmed_risk)) +
+  coord_quickmap() +
+  scale_fill_manual(values = c("#4ceb34", "#e7ed26", "#ed8d26", "#ed3726")) +
+  labs(title = "Truth", fill = "Confirmed risk")
+
+# now create the prediction = remove the class variable
 OH_predict <- subset(OH_test, select = -c(confirmed_risk) )
+
 # Decision Tree:
 pr <- predict(ctreeFit, OH_predict)
 confusionMatrix(pr, reference = OH_test$confirmed_risk)
+
+## visualize:
+prediction_OH <- truth_OH %>% mutate(confirmed_risk = pr)
+prediction_clust <- counties_OH %>% left_join(prediction_OH)
+decisionTree_map <- ggplot(prediction_clust, aes(long, lat)) + 
+  geom_polygon(aes(group = group, fill = confirmed_risk)) +
+  coord_quickmap() +
+  scale_fill_manual(values = c("#4ceb34", "#e7ed26", "#ed8d26", "#ed3726")) +
+  labs(title = "Decision Tree", fill = "Confirmed risk")
+
 
 # Support Vector Machine
 pr <- predict(svmFit, OH_predict)
 confusionMatrix(pr, reference = OH_test$confirmed_risk)
 
+## visualize:
+prediction_OH <- truth_OH %>% mutate(confirmed_risk = pr)
+prediction_clust <- counties_OH %>% left_join(prediction_OH)
+svm_map <- ggplot(prediction_clust, aes(long, lat)) + 
+  geom_polygon(aes(group = group, fill = confirmed_risk)) +
+  coord_quickmap() +
+  scale_fill_manual(values = c("#4ceb34", "#e7ed26", "#ed8d26", "#ed3726")) +
+  labs(title = "SVM", fill = "Confirmed risk")
+
+
 # Random Forest
 pr <- predict(randomForestFit, OH_predict)
 confusionMatrix(pr, reference = OH_test$confirmed_risk)
+
+## visualize:
+prediction_OH <- truth_OH %>% mutate(confirmed_risk = pr)
+prediction_clust <- counties_OH %>% left_join(prediction_OH)
+RandomForest_map <- ggplot(prediction_clust, aes(long, lat)) + 
+  geom_polygon(aes(group = group, fill = confirmed_risk)) +
+  coord_quickmap() +
+  scale_fill_manual(values = c("#4ceb34", "#e7ed26", "#ed8d26", "#ed3726")) +
+  labs(title = "Random Forest", fill = "Confirmed risk")
+
 
 # Neural Network 
 pr <- predict(nnetFit, OH_predict)
 confusionMatrix(pr, reference = OH_test$confirmed_risk)
 
+## visualize:
+prediction_OH <- truth_OH %>% mutate(confirmed_risk = pr)
+prediction_clust <- counties_OH %>% left_join(prediction_OH)
+neuralNetwork_map <- ggplot(prediction_clust, aes(long, lat)) + 
+  geom_polygon(aes(group = group, fill = confirmed_risk)) +
+  coord_quickmap() +
+  scale_fill_manual(values = c("#4ceb34", "#e7ed26", "#ed8d26", "#ed3726")) +
+  labs(title = "Neural Network", fill = "Confirmed risk")
+
+
+cowplot::plot_grid(decisionTree_map, svm_map, RandomForest_map, neuralNetwork_map, truth_map, nrow = 3, ncol = 2)
 
 ## Step II-05: Compare the decision boundaries ---------------------------------
 
