@@ -181,7 +181,7 @@ ggplot(counties_all, aes(long, lat)) +
 
 rm(counties, counties_all, test_copy)
 
-# Part II: classification ------------------------------------------------------
+# PART II: classification ------------------------------------------------------
 
 ## Step II-01: choosing classification variables -------------------------------
 
@@ -222,7 +222,8 @@ varImp(fit)
 
 #rm(fit)
 
-X_train <-cases_train %>% select(c(deaths_per_confirmed,
+X_train <- cases_train %>% select(c(county_name,
+                                   state,
                                    black_pop_P1000,
                                    employed_pop_P1000,
                                    median_income,
@@ -242,14 +243,14 @@ X_train <-cases_train %>% select(c(deaths_per_confirmed,
 ## Step II-02: Selecting the Models to Train/ Confirmed Cases ------------------
 
 # K-Folds Validation: 
-train_index <- createFolds(cases_train$confirmed_risk, k = 10)
+train_index <- createFolds(X_train$confirmed_risk, k = 10)
 
 # Hyperparameter tuning for cTree
 mincriterion <- seq(0.001, 0.01, by=0.0001)
 cTree_tuneGrid = as.data.frame(mincriterion)
 
 # Model 1: Decision Tree
-ctreeFit <- cases_train %>% train(confirmed_risk ~ .- county_name - state,
+ctreeFit <- X_train %>% train(confirmed_risk ~ .- county_name - state,
                                 method = "ctree",
                                 data = .,
                                 tuneLength = 5,
@@ -257,12 +258,12 @@ ctreeFit <- cases_train %>% train(confirmed_risk ~ .- county_name - state,
                                 trControl = trainControl(method = "cv", indexOut = train_index))
 ctreeFit
 
-#Hyperparameter tuning for SVM
+# Hyperparameter tuning for SVM
 C <- seq(0.01, 0.1, by=0.01)
 svm_tuneGrid = as.data.frame(C)
 
 # Model 2: Support Vector Machine
-svmFit <- cases_train %>% train(confirmed_risk ~.- county_name - state,
+svmFit <- X_train %>% train(confirmed_risk ~.- county_name - state,
                               method = "svmLinear",
                               data = .,
                               tuneLength = 5,
@@ -270,12 +271,12 @@ svmFit <- cases_train %>% train(confirmed_risk ~.- county_name - state,
                               trControl = trainControl(method = "cv", indexOut = train_index))
 svmFit
 
-#Hyperparameter tuning for Random Forest
+# Hyperparameter tuning for Random Forest
 mtry <- seq(0.01, 0.1, by=0.01)
 rf_tuneGrid = as.data.frame(mtry)
 
 # Model 3: Random Forest
-randomForestFit <- cases_train %>% train(confirmed_risk ~ .- county_name - state,
+randomForestFit <- X_train %>% train(confirmed_risk ~ .- county_name - state,
                                        method = "rf",
                                        data = .,
                                        tuneLength = 5,
@@ -283,12 +284,20 @@ randomForestFit <- cases_train %>% train(confirmed_risk ~ .- county_name - state
                                        trControl = trainControl(method = "cv", indexOut = train_index))
 randomForestFit
 
+# Hyperparameter tuning for Neural Network
+grid <- expand.grid(
+  size = as.numeric(c(5, 10, 20, 30)),
+  decay = as.numeric(c(0.1, 0.01, 0.001))
+)
+colnames(grid) <- c("size", "decay", "maxit")
 # Model 4: Neural Network
-nnetFit <- cases_train %>% train(confirmed_risk ~ .- county_name - state,
+nnetFit <- X_train %>% train(confirmed_risk ~ .- county_name - state,
                                method = "nnet",
                                data = .,
                                tuneLength = 5,
+                               tuneGrid = grid,
                                trControl = trainControl(method = "cv", indexOut = train_index),
+                               maxit = 500,
                                trace = FALSE)
 nnetFit
 
@@ -313,15 +322,12 @@ summary(difs)
 
 ## Step II-04: Testing each model to predict Ohio ------------------------------
 
-### added visualization part ---------------------------------------------------
+### added visualization part 
 counties <- as_tibble(map_data("county"))
 counties_OH <- counties %>% dplyr::filter(region == "ohio") %>% 
   rename(c(county = subregion))
 
-
 rm(counties)
-
-### prediction part ------------------------------------------------------------
 
 #We could just use cases_test here, just make sure you isolate "OH"
 # get ohio counties aside
@@ -395,8 +401,8 @@ neuralNetwork_map <- ggplot(prediction_clust, aes(long, lat)) +
   scale_fill_manual(values = c("#4ceb34", "#e7ed26", "#ed8d26", "#ed3726")) +
   labs(title = "Neural Network", fill = "Confirmed risk")
 
-
-cowplot::plot_grid(decisionTree_map, svm_map, RandomForest_map, neuralNetwork_map, truth_map, nrow = 3, ncol = 2)
+truth_map
+cowplot::plot_grid(decisionTree_map, svm_map, RandomForest_map, neuralNetwork_map, nrow = 2, ncol = 2)
 
 ## Step II-05: Compare the decision boundaries ---------------------------------
 
@@ -468,17 +474,7 @@ decisionplot <- function(model, data, class_var,
 }
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+# PART III: Exceptional Work 'deaths' -----------------------------------------
+# THIS PART AHS THE SAME ANALYSIS LIKE PART II ONLY THE CLASS VARIBAE IS CHANGED
+# TO: "death_risk"
 
