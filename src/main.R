@@ -200,7 +200,7 @@ cases_train <- cc_classed %>% filter(state %in% c("PA", "IL", "GA", "NC", "MI", 
 cases_train %>% pull(confirmed_risk) %>% table()
 
 # extract the test set
-cases_test <-  cc_classed %>% filter(!(state %in% c("OH")))
+cases_test <-  cc_classed %>% filter(!(state %in% c("PA", "IL", "GA", "NC", "MI", "NJ", "VA"))) 
 # check for class balance for the filtered dataset
 cases_test %>% pull(confirmed_risk) %>% table()
 
@@ -478,3 +478,221 @@ decisionplot <- function(model, data, class_var,
 # THIS PART AHS THE SAME ANALYSIS LIKE PART II ONLY THE CLASS VARIBAE IS CHANGED
 # TO: "death_risk"
 
+## Step III-01: choosing classification variables ------------------------------
+
+
+# extract the train set
+cases_train <- d_classed %>% filter(state %in% c("PA", "IL", "GA", "NC", "MI", "NJ", "VA"))
+# check for class balance for the filtered dataset
+cases_train %>% pull(death_risk) %>% table()
+
+# extract the test set
+cases_test <-  d_classed %>% filter(!(state %in% c("PA", "IL", "GA", "NC", "MI", "NJ", "VA")))
+# check for class balance for the filtered dataset
+cases_test %>% pull(death_risk) %>% table()
+
+# see attribute importance
+cases_train %>%  chi.squared(death_risk ~ ., data = .) %>% 
+  arrange(desc(attr_importance)) %>% head(n=15)
+
+# make a tree based classification
+fit <- cases_train %>%
+  train(death_risk ~ . - county_name - state,
+        data = . ,
+        #method = "rpart",
+        method = "rf",
+        #method = "nb",
+        trControl = trainControl(method = "cv", number = 10)
+  )
+fit
+varImp(fit)
+
+#rm(fit)
+
+X_train <- cases_train %>% select(c(county_name,
+                                    state,
+                                    median_income,
+                                    nonfamily_households_P1000,
+                                    hispanic_pop_P1000,
+                                    median_age,
+                                    walked_to_work_P1000,
+                                    percent_income_spent_on_rent,
+                                    black_pop_P1000,
+                                    male_under_40_ratio,
+                                    commuters_by_carpool_P1000,
+                                    female_under_40_ratio,
+                                    asian_pop_P1000,
+                                    housing_units_P1000,
+                                    income_per_capita,
+                                    employed_pop_P1000,
+                                    unemployed_pop_P1000,
+                                    pop_density_Pkm,
+                                    commuters_drove_alone_P1000,
+                                    amerindian_pop_P1000,
+                                    commuters_by_public_transportation_P1000,
+                                    death_risk))
+
+
+## Step III-02: Selecting the Models to Train/ deaths --------------------------
+
+# K-Folds Validation: 
+train_index <- createFolds(X_train$death_risk, k = 10)
+
+# Hyperparameter tuning for cTree
+mincriterion <- seq(0.001, 0.01, by=0.0001)
+cTree_tuneGrid = as.data.frame(mincriterion)
+
+# Model 1: Decision Tree
+ctreeFit_d <- X_train %>% train(death_risk ~ .- county_name - state,
+                              method = "ctree",
+                              data = .,
+                              tuneLength = 5,
+                              tuneGrid = cTree_tuneGrid,
+                              trControl = trainControl(method = "cv", indexOut = train_index))
+ctreeFit_d
+
+# Hyperparameter tuning for SVM
+C <- seq(0.01, 0.1, by=0.01)
+svm_tuneGrid = as.data.frame(C)
+
+# Model 2: Support Vector Machine
+svmFit_d <- X_train %>% train(death_risk ~.- county_name - state,
+                            method = "svmLinear",
+                            data = .,
+                            tuneLength = 5,
+                            tuneGrid = svm_tuneGrid,
+                            trControl = trainControl(method = "cv", indexOut = train_index))
+svmFit_d
+
+# Hyperparameter tuning for Random Forest
+mtry <- seq(0.01, 0.1, by=0.01)
+rf_tuneGrid = as.data.frame(mtry)
+
+# Model 3: Random Forest
+randomForestFit_d <- X_train %>% train(death_risk ~ .- county_name - state,
+                                     method = "rf",
+                                     data = .,
+                                     tuneLength = 5,
+                                     tuneGrid = rf_tuneGrid,
+                                     trControl = trainControl(method = "cv", indexOut = train_index))
+randomForestFit_d
+
+# Hyperparameter tuning for Neural Network
+grid <- expand.grid(
+  size = as.numeric(c(5, 10, 20, 30)),
+  decay = as.numeric(c(0.1, 0.01, 0.001))
+)
+
+# Model 4: Neural Network
+nnetFit_d <- X_train %>% train(death_risk ~ .- county_name - state,
+                             method = "nnet",
+                             data = .,
+                             tuneLength = 5,
+                             tuneGrid = grid,
+                             trControl = trainControl(method = "cv", indexOut = train_index),
+                             maxit = 500,
+                             trace = FALSE)
+nnetFit_d
+
+
+## Step III-03: Compare the models ---------------------------------------------
+
+resamps <- resamples(list(
+  ctree_d = ctreeFit_d,
+  SVM_d = svmFit_d,
+  randomForest_d = randomForestFit_d,
+  NeuralNet_d = nnetFit_d
+))
+resamps
+summary(resamps)
+
+library(lattice)
+bwplot(resamps, layout = c(3, 1))
+
+difs <- diff(resamps)
+difs
+summary(difs)
+
+## Step III-04: Testing each model to predict Ohio -----------------------------
+
+### added visualization part 
+counties <- as_tibble(map_data("county"))
+counties_OH <- counties %>% dplyr::filter(region == "ohio") %>% 
+  rename(c(county = subregion))
+
+rm(counties)
+
+#We could just use cases_test here, just make sure you isolate "OH"
+# get ohio counties aside
+OH_test <- d_classed %>% filter((state %in% c("OH")))
+
+# before doing any prediction create the ground truth cluster visualization 
+truth_OH <- OH_test %>% mutate(county = county_name %>% 
+                                 str_to_lower() %>% str_replace('\\s+county\\s*$', ''))
+truth_clust <- counties_OH %>% left_join(truth_OH)
+truth_d_map <- ggplot(truth_clust, aes(long, lat)) + 
+  geom_polygon(aes(group = group, fill = death_risk)) +
+  coord_quickmap() +
+  scale_fill_manual(values = c("#4ceb34", "#e7ed26", "#ed8d26", "#ed3726")) +
+  labs(title = "Truth", fill = "death risk")
+
+# now create the prediction = remove the class variable
+OH_predict <- subset(OH_test, select = -c(death_risk) )
+
+# Decision Tree:
+pr <- predict(ctreeFit_d, OH_predict)
+confusionMatrix(pr, reference = OH_test$death_risk)
+
+## visualize:
+prediction_OH <- truth_OH %>% mutate(death_risk = pr)
+prediction_clust <- counties_OH %>% left_join(prediction_OH)
+decisionTree_d_map <- ggplot(prediction_clust, aes(long, lat)) + 
+  geom_polygon(aes(group = group, fill = death_risk)) +
+  coord_quickmap() +
+  scale_fill_manual(values = c("#4ceb34", "#e7ed26", "#ed8d26", "#ed3726")) +
+  labs(title = "Decision Tree", fill = "death risk")
+
+
+# Support Vector Machine
+pr <- predict(svmFit_d, OH_predict)
+confusionMatrix(pr, reference = OH_test$death_risk)
+
+## visualize:
+prediction_OH <- truth_OH %>% mutate(death_risk = pr)
+prediction_clust <- counties_OH %>% left_join(prediction_OH)
+svm_d_map <- ggplot(prediction_clust, aes(long, lat)) + 
+  geom_polygon(aes(group = group, fill = death_risk)) +
+  coord_quickmap() +
+  scale_fill_manual(values = c("#4ceb34", "#e7ed26", "#ed8d26", "#ed3726")) +
+  labs(title = "SVM", fill = "death risk")
+
+
+# Random Forest
+pr <- predict(randomForestFit_d, OH_predict)
+confusionMatrix(pr, reference = OH_test$death_risk)
+
+## visualize:
+prediction_OH <- truth_OH %>% mutate(death_risk = pr)
+prediction_clust <- counties_OH %>% left_join(prediction_OH)
+RandomForest_d_map <- ggplot(prediction_clust, aes(long, lat)) + 
+  geom_polygon(aes(group = group, fill = death_risk)) +
+  coord_quickmap() +
+  scale_fill_manual(values = c("#4ceb34", "#e7ed26", "#ed8d26", "#ed3726")) +
+  labs(title = "Random Forest", fill = "death risk")
+
+
+# Neural Network 
+pr <- predict(nnetFit_d, OH_predict)
+confusionMatrix(pr, reference = OH_test$death_risk)
+
+## visualize:
+prediction_OH <- truth_OH %>% mutate(death_risk = pr)
+prediction_clust <- counties_OH %>% left_join(prediction_OH)
+neuralNetwork_d_map <- ggplot(prediction_clust, aes(long, lat)) + 
+  geom_polygon(aes(group = group, fill = death_risk)) +
+  coord_quickmap() +
+  scale_fill_manual(values = c("#4ceb34", "#e7ed26", "#ed8d26", "#ed3726")) +
+  labs(title = "Neural Network", fill = "death risk")
+
+truth_d_map
+cowplot::plot_grid(decisionTree_d_map, svm_d_map, RandomForest_d_map, neuralNetwork_d_map, nrow = 2, ncol = 2)
